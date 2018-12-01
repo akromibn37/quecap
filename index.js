@@ -2,21 +2,30 @@
 const firebase = require('firebase')
 const line = require('@line/bot-sdk');
 const express = require('express');
+var mysql = require('mysql');
 // const  = rerquie('./fiel')
 // var firebase = require("firebase");
 // create LINE SDK config from env variables
 
 const config = {
-  channelAccessToken: 'U43M3KfnQlMydCvFi3N9eh0NtDoeMm3kVGPwHIAlz6q9STe0Ea9Fax3LxOcmtBJoPZk2pywFWE/O8iV9j0ah/6g16D6PUu0Z2aR0S+836KODrSv8VuOXWAUvOHtcX7DAwplRgm/LnTv3PVi6lxm8FgdB04t89/1O/w1cDnyilFU=',
-  channelSecret: 'f6cf11d913e4a24648428a0179cec683',
-  apiKey: "AIzaSyBaVgUFW4DbYaCoFEwkXU7RnzodbwP9pgE",
-  authDomain: "quecap-5fe0a.firebaseapp.com",
-  databaseURL: "https://quecap-5fe0a.firebaseio.com",
-  projectId: "quecap-5fe0a",
-  storageBucket: "",
-  messagingSenderId: "125612660068"
+  channelAccessToken: '04nqposzjVH7ltLUhkw+Jzki5xcCAYaLWRN2m39+xBS+ZpwTRL20klqB5ZAHLW45z1jcqQQZe1riADpQ6/3oadwaVqpB9Lxl7PscFkDOrV6+8hNhObUc+W0VMlCsUJqim4N4zn2L/Y5vrWIuaEFz8wdB04t89/1O/w1cDnyilFU=',
+  channelSecret: '0e60e3f972ed101f0ac07ecf3c22a74a',
 };
-firebase.initializeApp(config);
+var con = mysql.createConnection({
+  host: "119.59.120.32",
+  user: "gooruapp_queue",
+  password: "GFhPccLkV4",
+  database: "gooruapp_queue"
+});
+
+con.connect(function(err) {
+  if (err) throw err;
+  con.query("SELECT * FROM changeinfo", function (err, result, fields) {
+    if (err) throw err;
+    // console.log(result);
+  });
+});
+
 // create LINE SDK client
 const client = new line.Client(config);
 
@@ -31,30 +40,48 @@ app.post('/callback', line.middleware(config), (req, res) => {
     .all(req.body.events.map(handleEvent))
     .then((result) => res.json(result))
     .catch((err) => {
-      console.error(err);
+      console.error(err.originalError.response.data,'err');
       res.status(500).end();
     });
 });
 
 // event handler
-function handleEvent(event) {
-  if (event.type !== 'message' || event.message.type !== 'text') {
-    // ignore non-text-message event
-    return Promise.resolve(null);
-  }
+async function handleEvent(event) {
+  // if (event.type !== 'message' || event.message.type !== 'text') {
+  //   // ignore non-text-message event
+  //   return Promise.resolve(null);
+  // }
 
   // create a echoing text message
   let echo = {};
+  var data = event.message.text.split(" ")
+  // console.log(data) 
+  console.log(event.source.userId)
   if (event.message.text === 'กี่โมง') {
     echo = { type: 'text', text: 'เที่ยง' };
-  } else if(event.text === 'จองคิว'){
-    echo = {type: 'text', text: 'ขอ CR number'}
-
-    // echo = { type: 'text', text: event.message.text + 'นะจ้ะ' };  
+    
+  } 
+  else if (event.message.text === String(data))
+  {
+    echo = { type: 'text',text: 'goin'};
   }
-  
+  else if (data[0] === 'Booking'){
+    await Booking(data[1],event.source.userId, function(result){
+      console.log('resultja ', result);
+
+      return client.replyMessage(event.replyToken, { type: 'text', text: result });
+    });          
+    // console.log("this is : " + x)   
+
+    // handleText(event.message, event.replyToken, event.source);
+    
+  }
+  else {
+    echo = {type: 'text', text: event.message.text + "ok"};
+  }
 
   // use reply API
+  
   return client.replyMessage(event.replyToken, echo);
 }
 
@@ -63,198 +90,49 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`listening on ${port}`);
 });
-function handleText(message, replyToken, source) {
-  const buttonsImageURL = `${baseURL}/static/buttons/1040.jpg`;
 
-  switch (message.text) {
-    case 'profile':
-      if (source.userId) {
-        return client.getProfile(source.userId)
-          .then((profile) => replyText(
-            replyToken,
-            [
-              `Display name: ${profile.displayName}`,
-              `Status message: ${profile.statusMessage}`,
-            ]
-          ));
-      } else {
-        return replyText(replyToken, 'Bot can\'t use profile API without user ID');
-      }
-    case 'buttons':
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'template',
-          altText: 'Buttons alt text',
-          template: {
-            type: 'buttons',
-            thumbnailImageUrl: buttonsImageURL,
-            title: 'My button sample',
-            text: 'Hello, my button',
-            actions: [
-              { label: 'Go to line.me', type: 'uri', uri: 'https://line.me' },
-              { label: 'Say hello1', type: 'postback', data: 'hello こんにちは' },
-              { label: '言 hello2', type: 'postback', data: 'hello こんにちは', text: 'hello こんにちは' },
-              { label: 'Say message', type: 'message', text: 'Rice=米' },
-            ],
-          },
+async function Booking(data,userId, callback){
+  con.query("SELECT * FROM changeinfo where changeNo='"+data+"';", function (err, result, fields) {
+    if(result){
+      console.log('in result')
+        con.query("INSERT INTO capdata (id,changeNo,status,reqdate,lineid,queue,capdate) VALUES ('','"+data+"','1','','"+userId+",'','')", function (err, result2,fields) {
+        if(err){
+          console.log('err in insert')
         }
-      );
-    case 'confirm':
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'template',
-          altText: 'Confirm alt text',
-          template: {
-            type: 'confirm',
-            text: 'Do it?',
-            actions: [
-              { label: 'Yes', type: 'message', text: 'Yes!' },
-              { label: 'No', type: 'message', text: 'No!' },
-            ],
-          },
-        }
-      )
-    case 'carousel':
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'template',
-          altText: 'Carousel alt text',
-          template: {
-            type: 'carousel',
-            columns: [
-              {
-                thumbnailImageUrl: buttonsImageURL,
-                title: 'hoge',
-                text: 'fuga',
-                actions: [
-                  { label: 'Go to line.me', type: 'uri', uri: 'https://line.me' },
-                  { label: 'Say hello1', type: 'postback', data: 'hello こんにちは' },
-                ],
-              },
-              {
-                thumbnailImageUrl: buttonsImageURL,
-                title: 'hoge',
-                text: 'fuga',
-                actions: [
-                  { label: '言 hello2', type: 'postback', data: 'hello こんにちは', text: 'hello こんにちは' },
-                  { label: 'Say message', type: 'message', text: 'Rice=米' },
-                ],
-              },
-            ],
-          },
-        }
-      );
-    case 'image carousel':
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'template',
-          altText: 'Image carousel alt text',
-          template: {
-            type: 'image_carousel',
-            columns: [
-              {
-                imageUrl: buttonsImageURL,
-                action: { label: 'Go to LINE', type: 'uri', uri: 'https://line.me' },
-              },
-              {
-                imageUrl: buttonsImageURL,
-                action: { label: 'Say hello1', type: 'postback', data: 'hello こんにちは' },
-              },
-              {
-                imageUrl: buttonsImageURL,
-                action: { label: 'Say message', type: 'message', text: 'Rice=米' },
-              },
-              {
-                imageUrl: buttonsImageURL,
-                action: {
-                  label: 'datetime',
-                  type: 'datetimepicker',
-                  data: 'DATETIME',
-                  mode: 'datetime',
-                },
-              },
-            ]
-          },
-        }
-      );
-    case 'datetime':
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'template',
-          altText: 'Datetime pickers alt text',
-          template: {
-            type: 'buttons',
-            text: 'Select date / time !',
-            actions: [
-              { type: 'datetimepicker', label: 'date', data: 'DATE', mode: 'date' },
-              { type: 'datetimepicker', label: 'time', data: 'TIME', mode: 'time' },
-              { type: 'datetimepicker', label: 'datetime', data: 'DATETIME', mode: 'datetime' },
-            ],
-          },
-        }
-      );
-    case 'imagemap':
-      return client.replyMessage(
-        replyToken,
-        {
-          type: 'imagemap',
-          baseUrl: `${baseURL}/static/rich`,
-          altText: 'Imagemap alt text',
-          baseSize: { width: 1040, height: 1040 },
-          actions: [
-            { area: { x: 0, y: 0, width: 520, height: 520 }, type: 'uri', linkUri: 'https://store.line.me/family/manga/en' },
-            { area: { x: 520, y: 0, width: 520, height: 520 }, type: 'uri', linkUri: 'https://store.line.me/family/music/en' },
-            { area: { x: 0, y: 520, width: 520, height: 520 }, type: 'uri', linkUri: 'https://store.line.me/family/play/en' },
-            { area: { x: 520, y: 520, width: 520, height: 520 }, type: 'message', text: 'URANAI!' },
-          ],
-          video: {
-            originalContentUrl: `${baseURL}/static/imagemap/video.mp4`,
-            previewImageUrl: `${baseURL}/static/imagemap/preview.jpg`,
-            area: {
-              x: 280,
-              y: 385,
-              width: 480,
-              height: 270,
-            },
-            externalLink: {
-              linkUri: 'https://line.me',
-              label: 'LINE'
-            }
-          },
-        }
-      );
-    case 'bye':
-      switch (source.type) {
-        case 'user':
-          return replyText(replyToken, 'Bot can\'t leave from 1:1 chat');
-        case 'group':
-          return replyText(replyToken, 'Leaving group')
-            .then(() => client.leaveGroup(source.groupId));
-        case 'room':
-          return replyText(replyToken, 'Leaving room')
-            .then(() => client.leaveRoom(source.roomId));
-      }
-    default:
-      console.log(`Echo message to ${replyToken}: ${message.text}`);
-      return replyText(replyToken, message.text);
+      });
+      
+    }
+    console.log('result in booking', result[0])
+    return callback(result[0]);
+    // resulttest = result[0].email
+    // console.log('resulttest',resulttest)
+    // console.log(result[0])
+    // console.log(result[0].queue)
+    
+    // if(result==='') {return 1;}
+    // else {      
+    //   return 0;
+    // }
+  });
+}
+async function xx(data,x)
+{
+  var x = await Booking(data);
+  await test(x);
+}
+function test(x)
+{
+  if (x==1)
+  {
+    echo = {type: 'text', text: 'No CRNumber'};
+  }
+  else{
+    echo = {type: 'text', text: 'Queue reserved'};
   }
 }
-
-function requestCR(){
-  if (event.type !== 'message' || event.message.type !== 'text') {
-    // ignore non-text-message event
-    return Promise.resolve(null);
-  }
-
-  // create a echoing text message
-  let echo = {};
-  if (event.message.text === 'จองคิว') {
-    echo = { type: 'text', text: 'ขอ CR number' };
-  } 
-
-}
+// setTimeout(function(){
+    //   con.query("INSERT INTO capdata (id,changeno,status,reqdate,lineid,queue,capdate) VALUES ('','"+data+"','1','','"+line+"','','')", function (err, result2,fields) {
+    //     // if (err) throw err;
+    //     console.log(result2);
+    //   });
+    // }, 2000);
